@@ -14,7 +14,7 @@ type config struct {
 	duration                       *time.Duration
 	url, method, certPath, keyPath string
 	body, bodyFilePath             string
-	stream                         bool
+	stream, urlFile                bool
 	headers                        *headersList
 	timeout                        time.Duration
 	// TODO(codesenberg): printLatencies should probably be
@@ -84,14 +84,16 @@ func (c *config) testType() testTyp {
 }
 
 func (c *config) checkURL() error {
-	url, err := urlx.Parse(c.url)
-	if err != nil {
-		return err
+	if !c.urlFile {
+		url, err := urlx.Parse(c.url)
+		if err != nil {
+			return err
+		}
+		if url.Host == "" || (url.Scheme != "http" && url.Scheme != "https") {
+			return errInvalidURL
+		}
+		c.url = url.String()
 	}
-	if url.Host == "" || (url.Scheme != "http" && url.Scheme != "https") {
-		return errInvalidURL
-	}
-	c.url = url.String()
 	return nil
 }
 

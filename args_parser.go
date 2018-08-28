@@ -17,7 +17,8 @@ type argsParser interface {
 type kingpinParser struct {
 	app *kingpin.Application
 
-	url string
+	url     string
+	urlFile bool
 
 	numReqs      *nullableUint64
 	duration     *nullableDuration
@@ -57,6 +58,7 @@ func newKingpinParser() argsParser {
 		keyPath:      "",
 		insecure:     false,
 		url:          "",
+		urlFile:      false,
 		rate:         new(nullableUint64),
 		clientType:   fhttp,
 		printSpec:    new(nullableString),
@@ -171,6 +173,10 @@ func newKingpinParser() argsParser {
 		Short('o').
 		StringVar(&kparser.formatSpec)
 
+	app.Flag("urlFile", "Very useful boolean variable").
+		Short('F').
+		BoolVar(&kparser.urlFile)
+
 	app.Arg("url", "Target's URL").Required().
 		StringVar(&kparser.url)
 
@@ -204,6 +210,7 @@ func (k *kingpinParser) parse(args []string) (config, error) {
 		numConns:       k.numConns,
 		numReqs:        k.numReqs.val,
 		duration:       k.duration.val,
+		urlFile:        k.urlFile,
 		url:            k.url,
 		headers:        k.headers,
 		timeout:        k.timeout,

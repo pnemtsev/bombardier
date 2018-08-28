@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/goware/urlx"
@@ -27,8 +28,9 @@ type clientOpts struct {
 	timeout   time.Duration
 	tlsConfig *tls.Config
 
-	headers     *headersList
-	url, method string
+	headers *headersList
+	url     []string
+	method  string
 
 	body    *string
 	bodProd bodyStreamProducer
@@ -39,8 +41,9 @@ type clientOpts struct {
 type fasthttpClient struct {
 	client *fasthttp.Client
 
-	headers     *fasthttp.RequestHeader
-	url, method string
+	headers *fasthttp.RequestHeader
+	url     []string
+	method  string
 
 	body    *string
 	bodProd bodyStreamProducer
@@ -74,7 +77,8 @@ func (c *fasthttpClient) do() (
 		c.headers.CopyTo(&req.Header)
 	}
 	req.Header.SetMethod(c.method)
-	req.SetRequestURI(c.url)
+	i := (atomic.AddUint32(&fastReqsCounter, 1) - 1) % uint32(len(c.url))
+	req.SetRequestURI(c.url[i])
 	if c.body != nil {
 		req.SetBodyString(*c.body)
 	} else {
@@ -106,7 +110,7 @@ type httpClient struct {
 	client *http.Client
 
 	headers http.Header
-	url     *url.URL
+	url     []*url.URL
 	method  string
 
 	body    *string
@@ -139,11 +143,13 @@ func newHTTPClient(opts *clientOpts) client {
 
 	c.headers = headersToHTTPHeaders(opts.headers)
 	c.method, c.body, c.bodProd = opts.method, opts.body, opts.bodProd
-	var err error
-	c.url, err = urlx.Parse(opts.url)
-	if err != nil {
-		// opts.url guaranteed to be valid at this point
-		panic(err)
+	for _, url := range opts.url {
+		u, err := urlx.Parse(url)
+		if err != nil {
+			// opts.url guaranteed to be valid at this point
+			panic(err)
+		}
+		c.url = append(c.url, u)
 	}
 
 	return client(c)
@@ -156,7 +162,8 @@ func (c *httpClient) do() (
 
 	req.Header = c.headers
 	req.Method = c.method
-	req.URL = c.url
+	i := (atomic.AddUint32(&fastReqsCounter, 1) - 1) % uint32(len(c.url))
+	req.URL = c.url[i]
 
 	if host := req.Header.Get("Host"); host != "" {
 		req.Host = host

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,13 +13,15 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/codesenberg/bombardier/internal"
+	"github.com/pnemtsev/bombardier/internal"
 
 	"github.com/cheggaaa/pb"
 	fhist "github.com/codesenberg/concurrent/float64/histogram"
 	uhist "github.com/codesenberg/concurrent/uint64/histogram"
 	"github.com/satori/go.uuid"
 )
+
+var fastReqsCounter uint32
 
 type bombardier struct {
 	bytesRead, bytesWritten int64
@@ -125,6 +128,21 @@ func newBombardier(c config) (*bombardier, error) {
 		}
 	}
 
+	var urls []string
+	if c.urlFile {
+		f, err := os.Open(c.url)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		s := bufio.NewScanner(f)
+		for s.Scan() {
+			urls = append(urls, s.Text())
+		}
+	} else {
+		urls = []string{c.url}
+	}
+
 	cc := &clientOpts{
 		HTTP2:     false,
 		maxConns:  c.numConns,
@@ -132,7 +150,7 @@ func newBombardier(c config) (*bombardier, error) {
 		tlsConfig: tlsConfig,
 
 		headers:      c.headers,
-		url:          c.url,
+		url:          urls,
 		method:       c.method,
 		body:         pbody,
 		bodProd:      bsp,
